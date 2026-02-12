@@ -1,19 +1,22 @@
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 
-module.exports = (req,res,next) => {
+module.exports = (req, res, next) => {
 
-     const authorization = req.headers.authorization;
-    if(!authorization){
-        return res.json({"message": "Authorization"})
-    }
-    try{
-        const token = authorization.split(" ")[1]
-        const decode = jwt.verify(token, secretCode)
-        req.user = decode.user
-        next()
+  const authorization = req.headers.authorization;
 
-    } catch(err){
-        return res.json({"message":"Token is invaliid or expired"})
-    }
-}
+  if (!authorization) {
+    return res.status(401).json({ message: "Authorization missing" });
+  }
 
+  try {
+    const token = authorization.split(" ")[1];
+
+    const decoded = jwt.verify(token, process.env.SECRET_CODE);
+
+    req.user = decoded.user;
+    next();
+
+  } catch (err) {
+    return res.status(401).json({ message: "Token is invalid or expired" });
+  }
+};

@@ -31,5 +31,28 @@ router.get('/revoke-request/myrequests',auth, async(req,res) => {
 })
 router.get('/revoke-request/myPendingrequests', auth,async(req,res) => {
     const requests = await Request.find({requestedBy: req.user,status:"PENDING"})
+    res.json({"requests":requests})
+})
+
+router.get('/manager/requests', auth, async(req,res) => {
+    try {
+        const requests = await Request.find();
+        res.status(200).json(requests);
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error });
+    }
+})
+
+router.get('/manager/myPendingRequests', auth, async(req,res) => {
+     if (req.role !== "MANAGER" || req.role !== "ADMIN") {
+        return res.status(403).json({ message: "Access denied" });
+    }
+
+    const requests = await Request.find({
+        requestedTo: req.user,
+        status: "PENDING"
+    });
+
+    res.json({ requests });
 })
 module.exports = router
