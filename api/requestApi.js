@@ -34,7 +34,7 @@ router.get('/revoke-request/myPendingrequests', auth,async(req,res) => {
     res.json({"requests":requests})
 })
 
-router.get('/manager/requests', auth, async(req,res) => {
+router.get('/admin/requests', auth, async(req,res) => {
     try {
         const requests = await Request.find();
         res.status(200).json(requests);
@@ -43,8 +43,8 @@ router.get('/manager/requests', auth, async(req,res) => {
     }
 })
 
-router.get('/manager/myPendingRequests', auth, async(req,res) => {
-     if (req.role !== "MANAGER" || req.role !== "ADMIN") {
+router.get('/admin/myPendingRequests', auth, async(req,res) => {
+     if (req.role !== "ADMIN") {
         return res.status(403).json({ message: "Access denied" });
     }
 
