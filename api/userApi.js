@@ -6,6 +6,8 @@ const User = require("../models/userModel")
 const router  = express.Router()
 
 router.post('/signup', async(req, res) => {
+    console.log("Request body:", req.body);
+
     const name = req.body.name
     const email = req.body.email
     const role = req.body.role
@@ -14,7 +16,7 @@ router.post('/signup', async(req, res) => {
   if (!email || !password) {
         return res.json({"message":"invalid request fields"})
     }
-  else if (role!= "MANAGER" && role!= "EMPLOYEE"){
+  else if (role!= "ADMIN" && role!= "EMPLOYEE"){
      return res.json({"message":"invalid request role"})
   }
   else if(password.length <= 5){
@@ -38,29 +40,49 @@ router.post('/signup', async(req, res) => {
     await user.save()
     return res.json({"message":"success"})
 }) 
+router.post("/login", async (req, res) => {
+    try {
+        console.log("LOGIN BODY:", req.body);
 
-router.post("/login", async(req,res) => {
-    console.log(req.body)
-    const user = await User.findOne({email: req.body.email})
-    if(!user){
-        return res.json({message: "Email is invalid"})
+        const { email, password } = req.body;
+
+        console.log("LOGIN SEARCH EMAIL:", email);
+
+        const user = await User.findOne({ email });
+
+        console.log("LOGIN USER FOUND:", user);
+
+        if (!user) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        if (user.status === "REJECTED") {
+            return res.status(403).json({ message: "Access revoked by admin" });
+        }
+
+        if (user.status === "PENDING") {
+            return res.status(403).json({ message: "Waiting for admin approval" });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        const token = jwt.sign(
+            { id: user._id, role: user.role, status: user.status },
+            process.env.SECRET_CODE,
+            { expiresIn: "1h" }
+        );
+
+        return res.json({ message: "Login successful", token });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Server error" });
     }
-    console.log(user,user.password,req.body.password)
-    const isPasswordMatching = await bcrypt.compare(req.body.password , user.password)
-    if(!isPasswordMatching){
-        return res.json({"message":"password invalid"})
-    }
-    try{
-    const token = jwt.sign(
-        {user: user._id},
-        process.env.SECRET_CODE,
-        {expiresIn:"1h"}
-    )
-    return res.json({message:"login sucessfull",token: token})
-}
-catch(err){
-    console.log(err)
-    return res.json({"message":"Server error"})
-}
-})
+});
+
+
+
 module.exports = router
