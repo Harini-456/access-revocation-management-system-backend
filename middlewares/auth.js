@@ -10,7 +10,7 @@ module.exports = async (req, res, next) => {
 
   try {
     // Extract token from header
-    const token = authorization.split(" ")[1];
+    let token = authorization.split(" ")[1];
 
     // Verify token
     const decoded = jwt.verify(token, process.env.SECRET_CODE);
@@ -22,15 +22,16 @@ module.exports = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Check user status
-    if (user.status !== "ACTIVE") {  // make sure field matches your User model
+    // Check user status safely
+    const userStatus = user.status || "ACTIVE"; // default to ACTIVE if undefined
+    if (userStatus !== "ACTIVE") {  
       return res.status(403).json({ message: "Access revoked" });
     }
 
     // Attach user info to request
     req.user = user._id;
     req.role = user.role;
-    req.status = user.status;
+    req.status = userStatus;
 
     next();
 

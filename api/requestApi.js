@@ -1,43 +1,40 @@
-const express = require("express")
-const router = express.Router()
-const auth = require("../middlewares/auth")
+const express = require("express");
+const router = express.Router();
+const auth = require("../middlewares/auth");
+const Request = require("../models/requestsModel");
+const User = require("../models/userModel"); 
 
-const Request = require("../models/requestsModel")
-router.post('/create', auth, async (req, res) => {
+router.post("/create", auth, async (req, res) => {
+  try {
+    const { title, description, adminId } = req.body;
 
-    const { title, description, adminName } = req.body;
-
-    if (!title || !description || !adminName) {
-        return res.json({ message: "Please send all details" });
+    if (!title || !description || !adminId) {
+      return res.status(400).json({ message: "Please send all details" });
     }
 
-    try {
-        const admin = await User.findOne({
-            name: adminName,
-            role: "ADMIN"
-        });
-
-        if (!admin) {
-            return res.status(404).json({ message: "Admin not found" });
-        }
-
-        const request = new Request({
-            title: title,
-            description: description,
-            status: "PENDING",
-            requestedBy: req.user,
-            requestedTo: admin._id,  
-        });
-
-        await request.save();
-
-        return res.json({ message: "Request created" });
-
-    } catch (err) {
-        return res.status(500).json({ message: "Server error" });
+    // Check if admin exists
+    const admin = await User.findById(adminId);
+    if (!admin || admin.role !== "ADMIN") {
+      return res.status(404).json({ message: "Admin not found" });
     }
+
+    const request = new Request({
+      requestType: title,      // match your schema
+      description,
+      status: "PENDING",
+      requestedBy: req.user,   // comes from auth middleware
+      requestedTo: admin._id
+    });
+
+    await request.save();
+
+    return res.status(201).json({ message: "Request created", request });
+
+  } catch (err) {
+    console.error("Create request error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
-
 
 router.get('/revoke-request/myrequests',auth, async(req,res) => {
     const requests = await Request.find({requestedBy: req.user})
@@ -78,12 +75,13 @@ router.put('/admin/approve/:id', auth, async (req, res) => {
 
     const request = await Request.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Request not found" });
-    if (request.requestedTo.toString() !== req.user) return res.status(403).json({ message: "Not assigned to you" });
+
+    if (request.requestedTo.toString() !== req.user.toString())
+        return res.status(403).json({ message: "Not assigned to you" });
 
     request.status = "APPROVED";
     await request.save();
 
-    // Update user status to ACTIVE
     const user = await User.findById(request.requestedBy);
     user.status = "ACTIVE";
     await user.save();
@@ -96,12 +94,13 @@ router.put('/admin/reject/:id', auth, async (req, res) => {
 
     const request = await Request.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Request not found" });
-    if (request.requestedTo.toString() !== req.user) return res.status(403).json({ message: "Not assigned to you" });
+
+    if (request.requestedTo.toString() !== req.user.toString())
+        return res.status(403).json({ message: "Not assigned to you" });
 
     request.status = "REJECTED";
     await request.save();
 
-    // Update user status to REJECTED
     const user = await User.findById(request.requestedBy);
     user.status = "REJECTED";
     await user.save();

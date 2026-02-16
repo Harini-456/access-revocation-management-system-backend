@@ -4,7 +4,8 @@ const userSchema =mongoose.Schema({
     name: String,
     email: String,
     role: String,
-    password: String
+    password: String,
+    status: { type: String, default: "ACTIVE" } 
 })
 
 const User =  mongoose.model("user",userSchema)
