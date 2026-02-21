@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const userApi = require("./api/userApi");
 const requestApi = require("./api/requestApi");
 const accessHistory = require("./models/accessHistory");
+const Request = require("../models/requestModel");
 
 const app = express();
 

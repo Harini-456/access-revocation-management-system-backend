@@ -106,4 +106,151 @@ router.get("/admin/history", auth, async (req, res) => {
 });
 
 
+router.post("/create", auth, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ message: "Reason is required" });
+    }
+
+    const existing = await Request.findOne({
+      userId: req.user.id,
+      status: "PENDING"
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        message: "You already have a pending request"
+      });
+    }
+
+    const newRequest = new Request({
+      userId: req.user.id,
+      reason
+    });
+
+    await newRequest.save();
+
+    res.json({ message: "Request submitted successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/admin/pending", auth, async (req, res) => {
+  try {
+    const requests = await Request.find({ status: "PENDING" })
+      .populate("userId", "name email");
+
+    res.json({ requests });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+const Request = require("../models/requestModel");
+const User = require("../models/userModel");
+const auth = require("../middlewares/auth");
+
+// USER CREATE REQUEST
+router.post("/create", auth, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ message: "Reason is required" });
+    }
+
+    const existing = await Request.findOne({
+      userId: req.user.id,
+      status: "PENDING"
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        message: "You already have a pending request"
+      });
+    }
+
+    const newRequest = new Request({
+      userId: req.user.id,
+      reason
+    });
+
+    await newRequest.save();
+
+    res.json({ message: "Request submitted successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ADMIN VIEW PENDING
+router.get("/admin/pending", auth, async (req, res) => {
+  try {
+    const requests = await Request.find({ status: "PENDING" })
+      .populate("userId", "name email");
+
+    res.json({ requests });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ADMIN APPROVE
+router.put("/admin/approve/:id", auth, async (req, res) => {
+  try {
+    const { reply } = req.body;
+
+    const request = await Request.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    request.status = "APPROVED";
+    request.adminReply = reply || "";
+    request.decisionBy = req.user.id;
+    request.decisionDate = new Date();
+
+    await request.save();
+
+    // Activate user
+    await User.findByIdAndUpdate(request.userId, {
+      status: "ACTIVE"
+    });
+
+    res.json({ message: "Request approved successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ADMIN REJECT
+router.put("/admin/reject/:id", auth, async (req, res) => {
+  try {
+    const { reply } = req.body;
+
+    const request = await Request.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    request.status = "REJECTED";
+    request.adminReply = reply || "";
+    request.decisionBy = req.user.id;
+    request.decisionDate = new Date();
+
+    await request.save();
+
+    res.json({ message: "Request rejected successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
 module.exports = router;
