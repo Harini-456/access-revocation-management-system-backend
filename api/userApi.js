@@ -53,10 +53,15 @@ router.post("/login", async (req, res) => {
         console.log("LOGIN USER FOUND:", user);
 
         if (!user) {
-            return res.status(400).json({ message: "User not found" });
+            return res.json({
+    message: "Login successful",
+    token,
+    role: user.role
+});
+
         }
 
-        if (user.status === "REJECTED") {
+        if (user.status === "REVOKED") {
             return res.status(403).json({ message: "Access revoked by admin" });
         }
 
@@ -76,7 +81,11 @@ router.post("/login", async (req, res) => {
             { expiresIn: "1h" }
         );
 
-        return res.json({ message: "Login successful", token });
+        return res.json({
+            message: "Login successful",
+            token,
+            role: user.role
+});
     } catch (err) {
         console.error(err);
         return res.status(500).json({ message: "Server error" });

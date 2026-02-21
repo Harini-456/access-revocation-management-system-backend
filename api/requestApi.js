@@ -1,111 +1,109 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../middlewares/auth");
-const Request = require("../models/requestsModel");
-const User = require("../models/userModel"); 
+const User = require("../models/userModel");
+const AccessHistory = require("../models/accessHistory");
 
-router.post("/create", auth, async (req, res) => {
+router.get("/status", auth, async (req, res) => {
   try {
-    const { title, description, adminId } = req.body;
+    const user = await User.findById(req.user).select("status role email");
 
-    if (!title || !description || !adminId) {
-      return res.status(400).json({ message: "Please send all details" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Check if admin exists
-    const admin = await User.findById(adminId);
-    if (!admin || admin.role !== "ADMIN") {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    const request = new Request({
-      requestType: title,      // match your schema
-      description,
-      status: "PENDING",
-      requestedBy: req.user,   // comes from auth middleware
-      requestedTo: admin._id
-    });
-
-    await request.save();
-
-    return res.status(201).json({ message: "Request created", request });
+    res.json({ status: user.status });
 
   } catch (err) {
-    console.error("Create request error:", err);
-    return res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-router.get('/revoke-request/myrequests',auth, async(req,res) => {
-    const requests = await Request.find({requestedBy: req.user})
-    res.json({"requests":requests})
-})
-router.get('/revoke-request/myPendingrequests', auth,async(req,res) => {
-    const requests = await Request.find({requestedBy: req.user,status:"PENDING"})
-    res.json({"requests":requests})
-})
 
-router.get('/admin/requests', auth, async(req,res) => {
-    if (req.role !== "ADMIN") {
-        return res.status(403).json({ message: "Access denied" });
-    }
-    try {
-        const requests = await Request.find();
-        res.status(200).json(requests);
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error });
-    }
-})
+router.get("/admin/users", auth, async (req, res) => {
+  if (req.role !== "ADMIN")
+    return res.status(403).json({ message: "Access denied" });
 
-router.get('/admin/myPendingRequests', auth, async(req,res) => {
-     if (req.role !== "ADMIN") {
-        return res.status(403).json({ message: "Access denied" });
-    }
+  try {
+    const users = await User.find().select("-password");
+    res.json({ users });
 
-    const requests = await Request.find({
-        requestedTo: req.user,
-        status: "PENDING"
-    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
-    res.json({ requests });
-})
 
-router.put('/admin/approve/:id', auth, async (req, res) => {
-    if (req.role !== "ADMIN") return res.status(403).json({ message: "Access denied" });
+router.put("/admin/grant/:id", auth, async (req, res) => {
+  if (req.role !== "ADMIN")
+    return res.status(403).json({ message: "Access denied" });
 
-    const request = await Request.findById(req.params.id);
-    if (!request) return res.status(404).json({ message: "Request not found" });
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
 
-    if (request.requestedTo.toString() !== req.user.toString())
-        return res.status(403).json({ message: "Not assigned to you" });
-
-    request.status = "APPROVED";
-    await request.save();
-
-    const user = await User.findById(request.requestedBy);
     user.status = "ACTIVE";
     await user.save();
 
-    res.json({ message: "Request approved, user activated" });
+    // Log history
+    await AccessHistory.create({
+      userId: user._id,
+      action: "GRANTED",
+      performedBy: req.user
+    });
+
+    res.json({ message: "Access granted successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-router.put('/admin/reject/:id', auth, async (req, res) => {
-    if (req.role !== "ADMIN") return res.status(403).json({ message: "Access denied" });
 
-    const request = await Request.findById(req.params.id);
-    if (!request) return res.status(404).json({ message: "Request not found" });
+router.put("/admin/revoke/:id", auth, async (req, res) => {
+  if (req.role !== "ADMIN")
+    return res.status(403).json({ message: "Access denied" });
 
-    if (request.requestedTo.toString() !== req.user.toString())
-        return res.status(403).json({ message: "Not assigned to you" });
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
 
-    request.status = "REJECTED";
-    await request.save();
-
-    const user = await User.findById(request.requestedBy);
-    user.status = "REJECTED";
+    user.status = "REVOKED";
     await user.save();
 
-    res.json({ message: "Request rejected, user access revoked" });
+    // Log history
+    await AccessHistory.create({
+      userId: user._id,
+      action: "REVOKED",
+      performedBy: req.user
+    });
+
+    res.json({ message: "Access revoked successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-module.exports = router
+
+
+router.get("/admin/history", auth, async (req, res) => {
+  if (req.role !== "ADMIN")
+    return res.status(403).json({ message: "Access denied" });
+
+  try {
+    const history = await AccessHistory.find()
+      .populate("userId", "name email")
+      .populate("performedBy", "name email");
+
+    res.json({ history });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+module.exports = router;
