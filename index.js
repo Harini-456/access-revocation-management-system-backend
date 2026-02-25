@@ -5,13 +5,16 @@ const connectDB = require("./config/db");
 const userApi = require("./api/userApi");
 const requestApi = require("./api/requestApi");
 const accessHistory = require("./models/accessHistory");
-const Request = require("../models/requestModel");
+const Request = require("./models/requestModel");
+const User = require("./models/userModel");
+const auth = require("./middlewares/auth");
 
 const app = express();
 
 app.use(cors({
     origin: ["http://127.0.0.1:5500", "http://localhost:5500"],
     methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 }));
 

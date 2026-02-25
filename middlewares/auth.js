@@ -2,32 +2,54 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 
 module.exports = async (req, res, next) => {
-  const authorization = req.headers.authorization;
-
-  if (!authorization)
-    return res.status(401).json({ message: "Authorization missing" });
+  // Allow preflight requests
+  if (req.method === "OPTIONS") return next();
 
   try {
+    const authorization = req.headers.authorization;
+
+    // Check if header exists
+    if (!authorization) {
+      return res.status(401).json({ message: "Authorization header missing" });
+    }
+
+    // Check Bearer format
+    if (!authorization.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Invalid token format" });
+    }
+
     const token = authorization.split(" ")[1];
 
-    const decoded = jwt.verify(token, process.env.SECRET_CODE);
+    if (!token) {
+      return res.status(401).json({ message: "Token missing" });
+    }
 
+    // Verify token
+    const decoded = jwt.verify(token, process.env.SECRET_CODE);
+    console.log("Signing with secret:", process.env.SECRET_CODE);
+    console.log("Verifying with secret:", process.env.SECRET_CODE);
+
+    // Find user in DB
     const user = await User.findById(decoded.id);
 
-    if (!user)
+    if (!user) {
       return res.status(401).json({ message: "User not found" });
+    }
 
-    if (user.status === "REVOKED")
-      return res.status(403).json({ message: "Access revoked by admin" });
+    // Allow only ACTIVE users
+    if (user.status !== "ACTIVE") {
+      return res.status(403).json({ message: "Access revoked or pending" });
+    }
 
-    // Set request values
+    // Attach user info to request
     req.user = user._id;
     req.role = user.role;
-    req.status = user.status;  
+    req.status = user.status;
 
     next();
 
   } catch (err) {
+    console.error("Auth error:", err.message);
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };

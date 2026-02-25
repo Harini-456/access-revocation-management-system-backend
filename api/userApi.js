@@ -3,6 +3,7 @@ const express = require("express")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const User = require("../models/userModel")
+const Request = require("../models/requestModel");
 const router  = express.Router()
 
 router.post('/signup', async(req, res) => {
@@ -41,57 +42,39 @@ router.post('/signup', async(req, res) => {
     return res.json({"message":"success"})
 }) 
 router.post("/login", async (req, res) => {
-    try {
-        console.log("LOGIN BODY:", req.body);
+  try {
+    const { email, password } = req.body;
 
-        const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(400).json({ message: "User not found" });
 
-        console.log("LOGIN SEARCH EMAIL:", email);
-
-        const user = await User.findOne({ email });
-
-        console.log("LOGIN USER FOUND:", user);
-
-        if (!user) {
-            return res.json({
-    message: "Login successful",
-    token,
-    role: user.role
-});
-
-        }
-
-        if (user.status === "REVOKED") {
-            return res.status(403).json({ message: "Access revoked by admin" });
-        }
-
-        if (user.status === "PENDING") {
-            return res.status(403).json({ message: "Waiting for admin approval" });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(400).json({ message: "Invalid credentials" });
-        }
-
-        const token = jwt.sign(
-            { id: user._id, role: user.role, status: user.status },
-            process.env.SECRET_CODE,
-            { expiresIn: "1h" }
-        );
-
-        return res.json({
-            message: "Login successful",
-            token,
-            role: user.role
-});
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Server error" });
+    // Allow ONLY ACTIVE users
+    if (user.status !== "ACTIVE") {
+      return res.status(403).json({
+        message: "Your account is not active. Contact admin."
+      });
     }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.SECRET_CODE,
+      { expiresIn: "1d" }
+    );
+
+    return res.json({
+      message: "Login successful",
+      token,
+      role: user.role
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
-
-
-
-module.exports = router
+module.exports = router;
