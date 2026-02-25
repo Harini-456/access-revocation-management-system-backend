@@ -26,8 +26,7 @@ module.exports = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.SECRET_CODE);
-    console.log("Signing with secret:", process.env.SECRET_CODE);
-    console.log("Verifying with secret:", process.env.SECRET_CODE);
+    
 
     // Find user in DB
     const user = await User.findById(decoded.id);
